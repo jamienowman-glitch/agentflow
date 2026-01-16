@@ -1,4 +1,5 @@
-# Dev Log · Agentflow / UI Factory
+# Dev Log (Legacy)
+> **LEGACY**: Do NOT add new entries here. Use `docs/logs/MULTI21_LOG.md` instead. · Agentflow / UI Factory
 
 A lightweight, human-maintained log of what’s happened.
 
@@ -28,3 +29,13 @@ Format:
   - Added `docs/00_DEV_PLAYBOOK.md`
   - Added `docs/10_MULTI21_PLAN.md`
   - Added `docs/99_DEV_LOG.md`
+
+- 2025-12-01 10:00 – [Max] – M21-18 mobile floating primitives implemented
+  - Added mobile FloatingIcon + FloatingToolbar primitives with snapping, stacking, and persistence (`multi21_mobile_layout`).
+  - Wired MobileFloatingManager to replace legacy mobile dock; settings/tools controls now live in floating toolbars.
+
+- 2025-12-01 10:20 – [Max] – Activated M21-19 (Mobile Horizontal Toolbar)
+  - Promoted M21-19 to Active Task in `docs/10_MULTI21_PLAN.md`; future tasks now start at M21-20.
+  - Next work: Phase T1 to build horizontal toolbar UI component.
+
+<!-- All future log entries must be appended here. No other log files. -->

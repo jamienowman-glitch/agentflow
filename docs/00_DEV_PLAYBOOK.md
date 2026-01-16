@@ -121,3 +121,8 @@ When planning a new change, use this structure in the relevant `*_PLAN.md` file:
 - **Verification**:
   - How to verify visually.
   - Any responsive checks.
+# Dev Playbook · Agentflow / Multi²¹
+> Pre-flight:
+> - Read `docs/constitution/00_CONSTITUTION.md`
+> - Read `docs/constitution/01_FACTORY_RULES.md`
+> - For overview and links, see `docs/MANIFESTO.md`

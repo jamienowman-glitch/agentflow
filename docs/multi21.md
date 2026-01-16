@@ -1,3 +1,6 @@
+> Note: This is the spec for the Multi²¹ component.  
+> For planning/backlog see `docs/10_MULTI21_PLAN.md`. For repo-level rules see `docs/MANIFESTO.md`.
+
 # MULTI 2¹
 
 MULTI 2¹ is a 24-column grid-based card layout system designed to render various types of items (YouTube feeds, products, collections, etc.) in a flexible, responsive grid.
@@ -5,6 +8,13 @@ MULTI 2¹ is a 24-column grid-based card layout system designed to render variou
 ## Purpose
 
 This component serves as a "brick" in a larger 24-column page grid. It abstracts away the complexity of responsive grid layouts, allowing for easy integration of diverse content types.
+
+## Shell vs. App Architecture
+
+**Multi²¹ is a builder app** (a "Shopify-like" drag-and-drop builder) that lives on top of a **generic UI Shell**.
+
+*   **The Shell**: Provides app-agnostic primitives like Floating Launchers, Stacks, Vertical/Horizontal Toolbars, and the Tool Registry. These will later be reused by other apps (AgentFlow, Email/CRM builders, POD surfaces).
+*   **The App (Multi²¹)**: Configures these primitives via the **Tool Registry** and **Config**, rather than hard-wiring bespoke toolbar components. It focuses on the grid logic and tile rendering.
 
 ## API Reference
 
@@ -88,3 +98,50 @@ The component uses the following CSS variables for styling:
 | Variable | Description | Default |
 | :--- | :--- | :--- |
 | `--multi-cta-arrow-color` | Color of the CTA arrow stroke. | `currentColor` |
+
+## 5. Core Surfaces Spec
+
+### 5.1 Signup Surface (`surface-onboarding`)
+
+*   **Atoms**:
+    *   `atom-signup-account`: Email, Password/Magic Link, Full Name, ToS/Privacy.
+    *   `atom-signup-business`: Business Name, Slug, Website, Country/Timezone.
+    *   `atom-signup-usecase`: Multi-select chips, "Main thing" (90-day goal).
+    *   `atom-signup-consent`: Training consent, Marketing consent.
+*   **Events**: `signup_viewed`, `signup_started`, `signup_step_completed`, `signup_completed`.
+
+### 5.2 Connectors Hub (`surface-connectors`)
+
+*   **Layout**: Card-per-connector.
+*   **Atoms**: `atom-connectors-card-{service}` (e.g. `shopify`, `ga4`, `meta`).
+*   **Card UI**:
+    *   Logo + Name + Status Pill (Not connected / Connected / Error).
+    *   Connect/Edit button.
+    *   **Strategy Lock** info icon ("What this connector allows").
+    *   **3-Wise** check icon ("Is this a good idea?").
+*   **Forms**:
+    *   Shopify: `shop_domain`, `api_key`, `api_version`.
+    *   GA4: `measurement_id`, `api_secret`.
+    *   Meta: `pixel_id`, `access_token`.
+*   **Backend Contract**: POST `/api/connectors/save` -> writes to GSM `connectors-{TENANT_ID}-{CONNECTOR_NAME}`.
+
+### 5.3 Chat Rail (`surface-chat`)
+
+*   **States**:
+    *   **Nano**: Only last agent message visible.
+    *   **Micro**: Last message + Input.
+    *   **Standard**: Half-screen history.
+    *   **Full Screen**: Dedicated view.
+*   **Input Controls**:
+    *   **3-Wise Band**: Pre-strategy vs Strategy vs Execution indicator.
+    *   **Fire / Refine**: Auto-prompt improvement.
+    *   **Attachment**: Upload to Nexus.
+*   **Agent Message Actions**:
+    *   **Strategy Lock**: Summarise plan -> Request confirmation.
+    *   **Save this**: Store to Saved/Nexus.
+    *   **3-Wise check**: Audit the plan.
+    *   **Remind me**: iCal hook.
+    *   **Undo**: Rollback conversation state.
+    *   **To-Do**: Convert to task card.
+*   **Streaming**: Grid of small squares that animate ONLY on real work.
+*   **Persona**: One consistent character per app (backed by clusters).
