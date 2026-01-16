@@ -1,6 +1,8 @@
-"use client";
+// =============================================================================
+// PageCanvas.tsx
+// =============================================================================
 
-import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     DndContext,
     DragEndEvent,
@@ -12,9 +14,6 @@ import {
     useSensor,
     useSensors,
     closestCenter,
-    rectIntersection,
-    getFirstCollision,
-    CollisionDetection,
 } from '@dnd-kit/core';
 import {
     SortableContext,
@@ -23,16 +22,14 @@ import {
     arrayMove
 } from '@dnd-kit/sortable';
 
-import { ConnectedBlock } from './ConnectedBlock';
-import { BottomControlsPanel } from './BottomControlsPanel';
-import { DesktopPanelSystem } from './DesktopPanelSystem';
-import { FloatingAction } from '../ui/FloatingAction';
-import { useToolControl } from '../../context/ToolControlContext';
-import { SortableBlockWrapper } from './SortableBlockWrapper';
-import { Multi21_PopupWrapper } from './Multi21_PopupWrapper';
-import { HiddenAttributionFields } from './HiddenAttributionFields';
-import { BuilderShell } from './BuilderShell';
-import { LensGraphView } from './lenses/LensGraphView';
+import { ConnectedBlock } from '../../multi21/ConnectedBlock';
+import { BottomControlsPanel } from '../../multi21/BottomControlsPanel';
+import { DesktopPanelSystem } from '../../multi21/DesktopPanelSystem';
+import { FloatingAction } from '../../ui/FloatingAction';
+import { useToolControl } from '../../../context/ToolControlContext';
+import { SortableBlockWrapper } from '../../multi21/SortableBlockWrapper';
+import { Multi21_PopupWrapper } from '../../multi21/Multi21_PopupWrapper';
+import { HiddenAttributionFields } from '../../multi21/HiddenAttributionFields';
 
 // --- Types ---
 export type Block = {
@@ -44,7 +41,6 @@ export type Block = {
 };
 
 // --- Helpers ---
-
 // Find which container (root or column-array-id) an item is in.
 const findContainer = (id: string, items: Block[]): string | undefined => {
     // Check root
@@ -64,45 +60,15 @@ const findContainer = (id: string, items: Block[]): string | undefined => {
     return undefined;
 };
 
-export interface Multi21DesignerProps {
-    userRole?: 'tenant' | 'architect';
-}
-
-export function Multi21Designer({ userRole = 'tenant' }: Multi21DesignerProps) {
+export const PageCanvas = () => {
     // Controls State
     const { useToolState } = useToolControl();
 
-    // -- Role & Dev Mode Logic --
-    const [devMode, setDevMode] = useState(false);
-    const effectiveRole = devMode ? 'architect' : userRole;
-
-    // Ctrl + . Trigger for Dev Mode
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === '.') {
-                e.preventDefault();
-                setDevMode(prev => !prev);
-                console.log('[Multi21Designer] Dev Mode Toggled:', !devMode);
-            }
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [devMode]);
-
     // -- Global State (View) --
+    // We reuse the toolId so it syncs with Workbench TopControls if needed
     const [previewMode, setPreviewMode] = useToolState<'desktop' | 'mobile'>({ target: { surfaceId: 'multi21.designer', toolId: 'previewMode' }, defaultValue: 'desktop' });
 
-    // -- Active Lens State --
-    const [activeLens, setActiveLens] = useToolState<'page' | 'graph'>({ target: { surfaceId: 'multi21.designer', toolId: 'activeLens' }, defaultValue: 'page' });
-
-    // Force Page View if Tenant
-    useEffect(() => {
-        if (effectiveRole === 'tenant' && activeLens !== 'page') {
-            setActiveLens('page');
-        }
-    }, [effectiveRole, activeLens, setActiveLens]);
-
-    // -- Layer State (Phase 19) --
+    // -- Layer State --
     const [viewLayer, setViewLayer] = useState<'page' | 'popup'>('page');
 
     // -- Stack State (Recursive) --
@@ -371,7 +337,7 @@ export function Multi21Designer({ userRole = 'tenant' }: Multi21DesignerProps) {
         { id: 'navigator', title: 'Navigator', content: navigatorContent },
         { id: 'settings', title: 'Settings', content: settingsContent },
         { id: 'tools', title: 'Tools', content: toolsContent },
-    ], [settingsContent, navigatorContent, activeBlockId, blocks]);
+    ], [settingsContent, navigatorContent, activeBlockId, blocks, previewMode]);
 
     const [showTools] = useToolState<boolean>({ target: { surfaceId: 'multi21.shell', toolId: 'ui.show_tools' }, defaultValue: false });
 
@@ -403,7 +369,6 @@ export function Multi21Designer({ userRole = 'tenant' }: Multi21DesignerProps) {
                         key={block.id}
                         id={block.id}
                         type={block.type}
-                        // Non-interactive background
                         isSelected={false}
                         onClick={() => { }}
                         previewMode={previewMode}
@@ -418,122 +383,114 @@ export function Multi21Designer({ userRole = 'tenant' }: Multi21DesignerProps) {
     );
 
     return (
-        <BuilderShell showGraphControls={effectiveRole === 'architect'}>
+        <div className="absolute inset-0 bg-white dark:bg-neutral-950 overflow-hidden flex flex-col">
             <HiddenAttributionFields />
 
-            {activeLens === 'page' ? (
-                <>
-                    <BottomControlsPanel
-                        settingsContent={settingsContent}
-                        activeBlockId={activeBlockId}
-                        activeBlockType={
-                            (() => {
-                                const findType = (items: Block[]): string | undefined => {
-                                    if (!activeBlockId) return undefined;
-                                    const match = items.find(b => b.id === activeBlockId);
-                                    if (match) return match.type;
-                                    for (const b of items) {
-                                        if (b.children) {
-                                            for (const col of b.children) {
-                                                const nested = findType(col);
-                                                if (nested) return nested;
-                                            }
+            <div className="flex-1 relative overflow-auto">
+                <BottomControlsPanel
+                    settingsContent={settingsContent}
+                    activeBlockId={activeBlockId}
+                    activeBlockType={
+                        (() => {
+                            const findType = (items: Block[]): string | undefined => {
+                                if (!activeBlockId) return undefined;
+                                const match = items.find(b => b.id === activeBlockId);
+                                if (match) return match.type;
+                                for (const b of items) {
+                                    if (b.children) {
+                                        for (const col of b.children) {
+                                            const nested = findType(col);
+                                            if (nested) return nested;
                                         }
                                     }
-                                    return undefined;
-                                };
-                                const found = findType(blocks);
-                                if (found) return found as 'media' | 'text' | 'cta' | 'row' | 'header';
-                                if (viewLayer === 'popup' && !activeBlockId) return 'popup';
+                                }
                                 return undefined;
-                            })()
-                        }
-                        isVisible={showTools}
-                    />
-
-                    {isAddMenuOpen && (
-                        <div className="fixed bottom-44 right-4 bg-white dark:bg-neutral-900 shadow-xl rounded-full p-2 flex flex-col gap-3 border border-neutral-200 dark:border-neutral-800 z-[60] animate-in fade-in slide-in-from-bottom-4 items-center w-12">
-                            <button onClick={() => handleAddBlock('text')} className="w-8 h-8 rounded-full bg-orange-50 hover:bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 flex items-center justify-center shadow-sm" title="Add Text"><span className="font-serif font-bold text-lg leading-none">T</span></button>
-                            <button onClick={() => handleAddBlock('media')} className="w-8 h-8 rounded-full bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shadow-sm" title="Add Media"><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg></button>
-                            <button onClick={() => handleAddBlock('cta')} className="w-8 h-8 rounded-full bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 flex items-center justify-center shadow-sm" title="Add Button"><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="4" y="8" width="16" height="8" rx="2" /><path d="M10 8V8" /></svg></button>
-                            <button onClick={() => handleAddBlock('header')} className="w-8 h-8 rounded-full bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-sm" title="Add Header"><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="3" y="3" width="18" height="6" rx="1" /><path d="M3 9h18" /></svg></button>
-                            <div className="w-full h-px bg-neutral-100 dark:bg-neutral-800 my-1" />
-                            <button onClick={() => handleAddBlock('row', 1)} className="w-8 h-8 rounded-full bg-neutral-50 hover:bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 flex items-center justify-center shadow-sm font-mono text-xs" title="1 Column">[I]</button>
-                            <button onClick={() => handleAddBlock('row', 2)} className="w-8 h-8 rounded-full bg-neutral-50 hover:bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 flex items-center justify-center shadow-sm font-mono text-xs" title="2 Columns">[II]</button>
-                            <button onClick={() => handleAddBlock('row', 3)} className="w-8 h-8 rounded-full bg-neutral-50 hover:bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 flex items-center justify-center shadow-sm font-mono text-xs" title="3 Columns">[III]</button>
-                        </div>
-                    )}
-                    <FloatingAction onClick={toggleAddMenu} />
-
-                    {isDesktop && <DesktopPanelSystem panels={panels} />}
-
-                    <main className="p-4 pb-32 max-w-[1600px] mx-auto flex flex-col items-center">
-                        <div className="w-full mb-8 border-b border-neutral-200 dark:border-neutral-800 pb-4">
-                            {/* Title reflects Layer */}
-                            <h2 className="text-2xl font-light tracking-tight flex items-center gap-2">
-                                {viewLayer === 'popup' ? (
-                                    <><span className="text-neutral-400">Layer:</span> Pop-up</>
-                                ) : (
-                                    'Collection Demo'
-                                )}
-                            </h2>
-                        </div>
-
-                        <div
-                            className={`transition-all duration-300 ease-in-out border border-transparent ${previewMode === 'mobile'
-                                ? 'w-[390px] border-neutral-200 dark:border-neutral-800 rounded-3xl overflow-hidden shadow-2xl bg-white dark:bg-black'
-                                : 'w-full'
-                                }`}
-                        >
-                            <div className={previewMode === 'mobile' ? 'p-4 h-[844px] overflow-y-auto scrollbar-hide' : ''}>
-                                {/* 1. Page Background Blocks (Dimmed if popup active) */}
-                                <div className={`transition-opacity duration-300 ${viewLayer === 'popup' ? 'opacity-20 pointer-events-none filter blur-sm' : 'opacity-100'}`}>
-                                    {/* If Page is Active, we use DnD for it. If Popup is active, we just render it statically here. */}
-                                    {viewLayer === 'page' ? (
-                                        <DndContext
-                                            sensors={sensors}
-                                            collisionDetection={closestCenter}
-                                            onDragStart={handleDragStart}
-                                            onDragOver={handleDragOver}
-                                            onDragEnd={handleDragEnd}
-                                        >
-                                            <SortableContext items={pageBlocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
-                                                {renderBlockList(pageBlocks, true)}
-                                            </SortableContext>
-                                        </DndContext>
-                                    ) : (
-                                        renderBlockList(pageBlocks, false)
-                                    )}
-                                </div>
-
-                                {/* 2. Popup Overlay */}
-                                <Multi21_PopupWrapper isOpen={viewLayer === 'popup'} onClose={() => setViewLayer('page')}>
-                                    <div className="p-4 min-h-[200px]">
-                                        {/* DnD Context for Popup */}
-                                        <DndContext
-                                            sensors={sensors}
-                                            collisionDetection={closestCenter}
-                                            onDragStart={handleDragStart}
-                                            onDragOver={handleDragOver}
-                                            onDragEnd={handleDragEnd}
-                                        >
-                                            <SortableContext items={popupBlocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
-                                                {renderBlockList(popupBlocks, true)}
-                                            </SortableContext>
-                                        </DndContext>
-                                    </div>
-                                </Multi21_PopupWrapper>
-                            </div>
-                        </div>
-                    </main>
-                </>
-            ) : (
-                <LensGraphView
-                    canvasId="current-demo"
-                    deviceMode={previewMode}
-                    onNodeSelect={(nodeId) => setActiveBlockId(nodeId)}
+                            };
+                            const found = findType(blocks);
+                            if (found) return found as 'media' | 'text' | 'cta' | 'row' | 'header';
+                            if (viewLayer === 'popup' && !activeBlockId) return 'popup';
+                            return undefined;
+                        })()
+                    }
+                    isVisible={showTools}
                 />
-            )}
-        </BuilderShell>
+
+                {isAddMenuOpen && (
+                    <div className="fixed bottom-44 right-4 bg-white dark:bg-neutral-900 shadow-xl rounded-full p-2 flex flex-col gap-3 border border-neutral-200 dark:border-neutral-800 z-[60] animate-in fade-in slide-in-from-bottom-4 items-center w-12">
+                        <button onClick={() => handleAddBlock('text')} className="w-8 h-8 rounded-full bg-orange-50 hover:bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 flex items-center justify-center shadow-sm" title="Add Text"><span className="font-serif font-bold text-lg leading-none">T</span></button>
+                        <button onClick={() => handleAddBlock('media')} className="w-8 h-8 rounded-full bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shadow-sm" title="Add Media"><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg></button>
+                        <button onClick={() => handleAddBlock('cta')} className="w-8 h-8 rounded-full bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 flex items-center justify-center shadow-sm" title="Add Button"><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="4" y="8" width="16" height="8" rx="2" /><path d="M10 8V8" /></svg></button>
+                        <button onClick={() => handleAddBlock('header')} className="w-8 h-8 rounded-full bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-sm" title="Add Header"><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="3" y="3" width="18" height="6" rx="1" /><path d="M3 9h18" /></svg></button>
+                        <div className="w-full h-px bg-neutral-100 dark:bg-neutral-800 my-1" />
+                        <button onClick={() => handleAddBlock('row', 1)} className="w-8 h-8 rounded-full bg-neutral-50 hover:bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 flex items-center justify-center shadow-sm font-mono text-xs" title="1 Column">[I]</button>
+                        <button onClick={() => handleAddBlock('row', 2)} className="w-8 h-8 rounded-full bg-neutral-50 hover:bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 flex items-center justify-center shadow-sm font-mono text-xs" title="2 Columns">[II]</button>
+                        <button onClick={() => handleAddBlock('row', 3)} className="w-8 h-8 rounded-full bg-neutral-50 hover:bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 flex items-center justify-center shadow-sm font-mono text-xs" title="3 Columns">[III]</button>
+                    </div>
+                )}
+                <FloatingAction onClick={toggleAddMenu} />
+
+                {isDesktop && <DesktopPanelSystem panels={panels} />}
+
+                <main className="p-4 pb-32 max-w-[1600px] mx-auto flex flex-col items-center">
+                    <div className="w-full mb-8 border-b border-neutral-200 dark:border-neutral-800 pb-4">
+                        {/* Title reflects Layer */}
+                        <h2 className="text-2xl font-light tracking-tight flex items-center gap-2 text-black dark:text-white">
+                            {viewLayer === 'popup' ? (
+                                <><span className="text-neutral-400">Layer:</span> Pop-up</>
+                            ) : (
+                                'Collection Demo'
+                            )}
+                        </h2>
+                    </div>
+
+                    <div
+                        className={`transition-all duration-300 ease-in-out border border-transparent ${previewMode === 'mobile'
+                            ? 'w-[390px] border-neutral-200 dark:border-neutral-800 rounded-3xl overflow-hidden shadow-2xl bg-white dark:bg-black'
+                            : 'w-full'
+                            }`}
+                    >
+                        <div className={previewMode === 'mobile' ? 'p-4 h-[844px] overflow-y-auto scrollbar-hide' : ''}>
+                            {/* 1. Page Background Blocks (Dimmed if popup active) */}
+                            <div className={`transition-opacity duration-300 ${viewLayer === 'popup' ? 'opacity-20 pointer-events-none filter blur-sm' : 'opacity-100'}`}>
+                                {/* If Page is Active, we use DnD for it. If Popup is active, we just render it statically here. */}
+                                {viewLayer === 'page' ? (
+                                    <DndContext
+                                        sensors={sensors}
+                                        collisionDetection={closestCenter}
+                                        onDragStart={handleDragStart}
+                                        onDragOver={handleDragOver}
+                                        onDragEnd={handleDragEnd}
+                                    >
+                                        <SortableContext items={pageBlocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
+                                            {renderBlockList(pageBlocks, true)}
+                                        </SortableContext>
+                                    </DndContext>
+                                ) : (
+                                    renderBlockList(pageBlocks, false)
+                                )}
+                            </div>
+
+                            {/* 2. Popup Overlay */}
+                            <Multi21_PopupWrapper isOpen={viewLayer === 'popup'} onClose={() => setViewLayer('page')}>
+                                <div className="p-4 min-h-[200px]">
+                                    {/* DnD Context for Popup */}
+                                    <DndContext
+                                        sensors={sensors}
+                                        collisionDetection={closestCenter}
+                                        onDragStart={handleDragStart}
+                                        onDragOver={handleDragOver}
+                                        onDragEnd={handleDragEnd}
+                                    >
+                                        <SortableContext items={popupBlocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
+                                            {renderBlockList(popupBlocks, true)}
+                                        </SortableContext>
+                                    </DndContext>
+                                </div>
+                            </Multi21_PopupWrapper>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
     );
 }
