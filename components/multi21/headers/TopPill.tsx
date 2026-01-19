@@ -53,7 +53,7 @@ export function TopPill({ setIsRightPanelOpen }: TopPillProps) {
                     onClick={() => toggleState('nx')}
                     className={`w-8 h-8 flex items-center justify-center rounded-full text-xs font-bold transition-all duration-300 ${state === 'nx' ? 'bg-white text-black' : 'bg-white/10 hover:bg-white/20'}`}
                 >
-                    Nˣ
+                    <span>N<sup>x</sup></span>
                 </button>
 
                 {/* --- CENTER --- */}
@@ -66,7 +66,7 @@ export function TopPill({ setIsRightPanelOpen }: TopPillProps) {
                     onClick={() => toggleState('m21')}
                     className={`w-8 h-8 flex items-center justify-center rounded-full text-xs font-bold transition-all duration-300 ${state === 'm21' ? 'bg-white text-black' : 'bg-white/10 hover:bg-white/20'}`}
                 >
-                    M²¹
+                    <span>M<sup>21</sup></span>
                 </button>
 
                 {/* --- RIGHT EXPANSION (M21) --- */}
